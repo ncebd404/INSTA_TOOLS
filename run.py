@@ -3,30 +3,41 @@
 
 """
 Smart Launcher for INSTA_TOOLS
-Enhanced & Clean Version
+Fixed for start_cmd() missing 'message' argument
 """
 
 import os
 import subprocess
 import sys
+import types  # dummy message এর জন্য
 
 # ====================== সুন্দর ব্যানার ======================
 def print_banner():
     os.system("clear")
-    print("\033[1;36m" + "═" * 55 + "\033[0m")
+    print("\033[1;36m" + "═" * 60 + "\033[0m")
     print("\033[1;33m          🚀 INSTA TOOLS - SMART LAUNCHER 🚀\033[0m")
-    print("\033[1;36m" + "═" * 55 + "\033[0m")
-    print("\033[1;32m[+] Initializing Tool... Please wait\033[0m\n")
+    print("\033[1;36m" + "═" * 60 + "\033[0m")
+    print("\033[1;32m[+] Initializing...\033[0m\n")
+
+# ====================== Dummy Message তৈরি ======================
+def create_dummy_message():
+    """Telegram message এর মতো dummy অবজেক্ট তৈরি"""
+    class DummyMessage:
+        def __init__(self):
+            self.chat = types.SimpleNamespace(id=0)
+            self.from_user = types.SimpleNamespace(id=0, username="termux_user")
+            self.text = "/start"
+            self.message_id = 1
+    return DummyMessage()
 
 # ====================== মেইন ফাংশন ======================
 def main():
     print_banner()
 
-    # Architecture Check (64-bit only)
     bit = os.uname().machine
     if '64' not in bit:
-        print("\033[1;31m[-] TOOL NOT AVAILABLE FOR 32-BIT DEVICES!\033[0m")
-        print(f"   Your device: \033[1;33m{bit}\033[0m")
+        print("\033[1;31m[-] 32-BIT DEVICE NOT SUPPORTED!\033[0m")
+        print(f"   Detected: {bit}")
         sys.exit(1)
 
     print(f"\033[1;32m[+] Architecture: {bit}\033[0m")
@@ -34,87 +45,89 @@ def main():
     # Auto Git Update
     try:
         if os.path.exists(".git"):
-            print("\033[1;34m[+] Checking for updates...\033[0m")
+            print("\033[1;34m[+] Checking updates...\033[0m")
             changes = subprocess.getoutput("git status --porcelain")
-            
             if changes.strip():
-                print("\033[1;33m[+] Updating tool to latest version...\033[0m")
+                print("\033[1;33m[+] Updating tool...\033[0m")
                 os.system("git reset --hard >/dev/null 2>&1")
                 os.system("git clean -fd >/dev/null 2>&1")
                 os.system("git pull >/dev/null 2>&1")
-                print("\033[1;32m[+] Tool updated successfully!\033[0m")
+                print("\033[1;32m[+] Updated successfully!\033[0m")
             else:
-                print("\033[1;32m[+] Tool is already up to date.\033[0m")
+                print("\033[1;32m[+] Already up to date.\033[0m")
     except:
         pass
 
-    # Permission Fix
-    print("\033[1;34m[+] Fixing file permissions...\033[0m")
+    # Permission
+    print("\033[1;34m[+] Fixing permissions...\033[0m")
     os.system("chmod 777 * 2>/dev/null")
 
-    # Load and Run Tool Module
+    # Load Tool
     try:
         import tool
         print("\033[1;32m[+] Tool module loaded successfully!\033[0m\n")
 
-        # ==================== AUTO RUN SYSTEM ====================
-        print("\033[1;34m[+] Searching for entry point...\033[0m")
+        print("\033[1;34m[+] Starting tool...\033[0m")
 
-        # Priority Order (এই টুলের জন্য start_cmd সবার আগে)
+        # ==================== FIXED AUTO RUN ====================
+        started = False
+
+        # 1. Try start_cmd with dummy message
         if hasattr(tool, 'start_cmd'):
-            print("\033[1;35m[+] Running start_cmd() ...\033[0m")
-            tool.start_cmd()
+            try:
+                print("\033[1;35m[+] Trying start_cmd() with dummy message...\033[0m")
+                dummy_msg = create_dummy_message()
+                tool.start_cmd(dummy_msg)
+                started = True
+            except TypeError as e:
+                if "missing 1 required positional argument: 'message'" in str(e):
+                    print("\033[1;33m[!] start_cmd() needs message. Trying without...\033[0m")
+                    try:
+                        tool.start_cmd()   # যদি কোনো ক্ষেত্রে message ছাড়া চলে
+                        started = True
+                    except:
+                        pass
+                else:
+                    raise
 
-        elif hasattr(tool, 'start_checking'):
-            print("\033[1;35m[+] Running start_checking() ...\033[0m")
-            tool.start_checking()
+        # 2. অন্যান্য ফাংশন চেষ্টা
+        if not started:
+            if hasattr(tool, 'start_checking'):
+                print("\033[1;35m[+] Running start_checking() ...\033[0m")
+                tool.start_checking()
+                started = True
 
-        elif hasattr(tool, 'main'):
-            print("\033[1;35m[+] Running main() ...\033[0m")
-            tool.main()
+            elif hasattr(tool, 'main'):
+                print("\033[1;35m[+] Running main() ...\033[0m")
+                tool.main()
+                started = True
 
-        elif hasattr(tool, 'start'):
-            print("\033[1;35m[+] Running start() ...\033[0m")
-            tool.start()
+            elif hasattr(tool, 'start'):
+                print("\033[1;35m[+] Running start() ...\033[0m")
+                tool.start()
+                started = True
 
-        elif hasattr(tool, 'run'):
-            print("\033[1;35m[+] Running run() ...\033[0m")
-            tool.run()
-
-        else:
-            # Auto detect যদি উপরের কোনোটাই না থাকে
-            print("\033[1;33m[!] No standard entry point found. Trying auto-detect...\033[0m")
-            funcs = [f for f in dir(tool) 
-                    if callable(getattr(tool, f)) and not f.startswith("__")]
-            
-            if funcs:
-                print(f"\033[1;33m[+] Available functions: {funcs}\033[0m")
-                print(f"\033[1;32m[+] Running: {funcs[0]}()\033[0m")
-                getattr(tool, funcs[0])()
-            else:
-                print("\033[1;31m[-] No runnable function found in tool module!\033[0m")
-                print("   Try running manually: python -c 'import tool; tool.start_cmd()'")
+        if not started:
+            print("\033[1;31m[-] Could not find suitable entry point!\033[0m")
+            print("   Available functions:", [f for f in dir(tool) if callable(getattr(tool, f)) and not f.startswith("__")])
 
     except ImportError as e:
-        print("\033[1;31m\n[-] Failed to load 'tool' module!\033[0m")
-        print("   → Make sure tool.cpython-312-*.so file exists")
-        print("   → Python version must be 3.12")
+        print("\033[1;31m\n[-] Tool module load failed!\033[0m")
         print(f"   Error: {e}")
         sys.exit(1)
 
     except Exception as e:
-        print(f"\033[1;31m\n[-] Error while running tool:\033[0m")
-        print(f"   {type(e).__name__}: {e}")
+        print(f"\033[1;31m\n[-] Error: {type(e).__name__}\033[0m")
+        print(f"   {e}")
+        print("\n💡 Try manually:")
+        print("   python -c \"import tool; tool.start_checking()\"")
         sys.exit(1)
 
 
-# ====================== স্ক্রিপ্ট শুরু ======================
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n\033[1;33m[!] Tool stopped by user (Ctrl + C)\033[0m")
-        sys.exit(0)
+        print("\n\n\033[1;33m[!] Stopped by user.\033[0m")
     except Exception as e:
-        print(f"\033[1;31m\n[-] Critical Error: {e}\033[0m")
-        sys.exit(1)
+        print(f"\033[1;31mCritical Error: {e}\033[0m")
